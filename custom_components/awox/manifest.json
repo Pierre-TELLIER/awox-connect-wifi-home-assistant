@@ -1,0 +1,10 @@
+{
+  "domain": "awox",
+  "name": "AwoX Connect Wifi Lights ",
+  "codeowners": ["@piair"],
+  "config_flow": true,
+  "documentation": "https://forge.piair.dev/Piair/awox-connect-wifi-home-assistant",
+  "iot_class": "cloud_push",
+  "requirements": ["paho-mqtt", "requests", "git+https://forge.piair.dev/Piair/awox-connect-wifi.git@main"],
+  "version": "0.1.0"
+}
