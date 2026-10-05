@@ -22,8 +22,8 @@ from homeassistant.core import HomeAssistant
 from awox.config import AppConfig
 from awox.controls.light import Light
 from awox.mqtt.client import MQTTClient
-from awox.provisionning.provisioner import Provisioner
-from awox.state import AppState, DeviceState, load_state
+from awox.provisioning.provisioner import Provisioner
+from awox.state import AppState, Device, load_state
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,10 +54,9 @@ class AwoxHub:
         self.mqtt_client = await self.hass.async_add_executor_job(
             MQTTClient, self.config, connection_device
         )
-        self.mqtt_client.client.on_message = self._on_message
 
         await self.hass.async_add_executor_job(self.mqtt_client.connect)
-
+        await self.hass.async_add_executor_job(self.mqtt_client.wait_for_readiness)
         self.lights = {
             device_uuid: Light(
                 mqtt=self.mqtt_client,
@@ -80,7 +79,7 @@ class AwoxHub:
         provisioner = Provisioner(self.config, existing_state)
         return provisioner.provision()
 
-    def _pick_connection_device(self, state: AppState) -> DeviceState:
+    def _pick_connection_device(self, state: AppState) -> Device:
         # ASSUMPTION: account_id / fingerprint / udn are identical across
         # every entry in state.devices, so any one of them can drive the
         # MQTT session identity. If provisioning actually gives you a
