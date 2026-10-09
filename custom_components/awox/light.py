@@ -11,10 +11,9 @@ from homeassistant.components.light import (
     LightEntity,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
 from .hub import AwoxHub
 
 
@@ -58,6 +57,36 @@ class AwoxLightEntity(LightEntity):
         # Device is either RGB or color-temp, never both - this is the
         # single source of truth for which one HA currently shows as active.
         self._attr_color_mode = ColorMode.COLOR_TEMP
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(self._hub.add_listener(self._device_uuid, self._handle_state))
+        self._handle_state()  # show the last known state straight away
+
+    @callback
+    def _handle_state(self) -> None:
+        """Copy the state the hub parsed from the light's latest report."""
+        state = self._hub.state.devices[self._device_uuid].state
+        if state is None:
+            return
+
+        self._attr_assumed_state = False
+        if state.power is not None:
+            self._attr_is_on = state.power
+        if state.brightness is not None:
+            self._attr_brightness = round(state.brightness * 255 / 100)  # device 0-100 -> HA 0-255
+        if state.rgb:
+            self._attr_rgb_color = tuple(state.rgb)
+        if state.temperature is not None:
+            span = self._attr_max_color_temp_kelvin - self._attr_min_color_temp_kelvin
+            self._attr_color_temp_kelvin = round(
+                self._attr_min_color_temp_kelvin + state.temperature * span / 100
+            )
+        if state.mode == "color":
+            self._attr_color_mode = ColorMode.RGB
+        elif state.mode == "white":
+            self._attr_color_mode = ColorMode.COLOR_TEMP
+        self.async_write_ha_state()
+
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         if ATTR_BRIGHTNESS in kwargs:

@@ -21,14 +21,13 @@ from homeassistant.core import HomeAssistant
 
 from awox.config import AppConfig
 from awox.controls.light import Light
-from awox.mqtt.client import MQTTClient
+from awox.mqtt.client import MQTTClient, parse_light_state
 from awox.provisioning.provisioner import Provisioner
 from awox.state import AppState, Device, load_state
 
 _LOGGER = logging.getLogger(__name__)
 
-StateListener = Callable[[dict], None]
-
+StateListener = Callable[[], None]
 
 class AwoxHub:
     def __init__(self, hass: HomeAssistant, config: AppConfig) -> None:
@@ -38,6 +37,7 @@ class AwoxHub:
         self.mqtt_client: MQTTClient | None = None
         self.lights: dict[str, Light] = {}
         self._listeners: dict[str, list[StateListener]] = {}
+        self.mqtt_client._client.on_message = self._on_message
 
     # ------------------------------------------------------------------
     # Setup / teardown
@@ -111,7 +111,40 @@ class AwoxHub:
         await self.hass.async_add_executor_job(
             self.lights[device_uuid].set_temperature, level
         )
+    # ------------------------------------------------------------------
+    # Incoming state reports - paho thread parses, event loop notifies
+    # ------------------------------------------------------------------
 
-    def _dispatch(self, device_uuid: str, payload: dict) -> None:
-        for listener in self._listeners.get(device_uuid, []):
-            listener(payload)
+    def add_listener(self, device_id: str, listener: StateListener) -> Callable[[], None]:
+        """Call listener() on the event loop whenever this light reports state."""
+        self._listeners.setdefault(device_id, []).append(listener)
+
+        def remove() -> None:
+            self._listeners[device_id].remove(listener)
+
+        return remove
+
+    def _on_message(self, client, userdata, msg) -> None:
+        """paho thread: update the matching light's state, then notify its entity."""
+        try:
+            data = json.loads(msg.payload.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            _LOGGER.debug("Unparsable payload on %s, ignoring", msg.topic)
+            return
+
+        if data.get("rt") != "oic.d.light":
+            return  # not a light state report
+
+        device_id = data.get("di")
+        device = self.state.devices.get(device_id) if self.state else None
+        if device is None or device.state is None:
+            _LOGGER.debug("State for unknown device %s, ignoring", device_id)
+            return
+
+        parse_light_state(msg.payload, device.state)
+        self.hass.loop.call_soon_threadsafe(self._dispatch, device_id)
+
+    def _dispatch(self, device_id: str) -> None:
+        """Event loop: notify entities of a device's new state."""
+        for listener in list(self._listeners.get(device_id, [])):
+            listener()
