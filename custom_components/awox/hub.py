@@ -37,7 +37,6 @@ class AwoxHub:
         self.mqtt_client: MQTTClient | None = None
         self.lights: dict[str, Light] = {}
         self._listeners: dict[str, list[StateListener]] = {}
-        self.mqtt_client._client.on_message = self._on_message
 
     # ------------------------------------------------------------------
     # Setup / teardown
@@ -54,6 +53,7 @@ class AwoxHub:
         self.mqtt_client = await self.hass.async_add_executor_job(
             MQTTClient, self.config, connection_device
         )
+        self.mqtt_client._client.on_message = self._on_message
 
         await self.hass.async_add_executor_job(self.mqtt_client.connect)
         await self.hass.async_add_executor_job(self.mqtt_client.wait_for_readiness)
