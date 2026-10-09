@@ -112,42 +112,6 @@ class AwoxHub:
             self.lights[device_uuid].set_temperature, level
         )
 
-    # ------------------------------------------------------------------
-    # Incoming messages - fires on paho's own thread, never touch HA
-    # state directly from here.
-    # ------------------------------------------------------------------
-
-    def add_listener(
-        self, device_uuid: str, listener: StateListener
-    ) -> Callable[[], None]:
-        """For future use once real state feedback has a defined format."""
-        self._listeners.setdefault(device_uuid, []).append(listener)
-
-        def remove() -> None:
-            self._listeners[device_uuid].remove(listener)
-
-        return remove
-
-    def _on_message(self, client, userdata, msg) -> None:
-        device_uuid = self._device_uuid_from_topic(msg.topic)
-        if device_uuid is None or device_uuid not in self._listeners:
-            return
-        try:
-            payload = json.loads(msg.payload.decode("utf-8"))
-        except (ValueError, UnicodeDecodeError):
-            _LOGGER.debug("Unparsable payload on %s, ignoring", msg.topic)
-            return
-
-        self.hass.loop.call_soon_threadsafe(self._dispatch, device_uuid, payload)
-
     def _dispatch(self, device_uuid: str, payload: dict) -> None:
         for listener in self._listeners.get(device_uuid, []):
             listener(payload)
-
-    @staticmethod
-    def _device_uuid_from_topic(topic: str) -> str | None:
-        # aw/{account_id}/u/{device_uuid}
-        parts = topic.split("/")
-        if len(parts) >= 4 and parts[2] == "u":
-            return parts[3]
-        return None

@@ -9,5 +9,5 @@
 
   "iot_class": "cloud_push",
   "requirements": ["git+https://github.com/Pierre-TELLIER/awox-connect-wifi.git@main"],
-  "version": "0.2.0"
+  "version": "0.3.0"
 }

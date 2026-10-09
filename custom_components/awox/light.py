@@ -23,7 +23,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    hub: AwoxHub = hass.data[DOMAIN][entry.entry_id]
+    hub: AwoxHub = entry.runtime_data
 
     async_add_entities(
         AwoxLightEntity(hub, device_uuid)
@@ -49,7 +49,7 @@ class AwoxLightEntity(LightEntity):
         device = hub.state.devices[device_uuid]
 
         self._attr_unique_id = device_uuid
-        self._attr_name = device.udn or device_uuid
+        self._attr_name = device.config.friendly_name or device_uuid
 
         self._attr_is_on = False
         self._attr_brightness: int | None = None

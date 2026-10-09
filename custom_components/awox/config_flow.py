@@ -10,8 +10,10 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.helpers import selector
+import requests
 
-from .const import CONF_PASSWORD, CONF_TARGET_DEVICE_NAME, CONF_USERNAME, DOMAIN
+from .const import CONF_PASSWORD, CONF_USERNAME, DOMAIN
+from awox.parse.client import ParseClient
 
 def _check_login(username: str, password: str) -> None:
     ParseClient(username, password, requests.Session())  # raises on failure
@@ -23,7 +25,6 @@ STEP_USER_SCHEMA = vol.Schema(
         vol.Required(CONF_PASSWORD): selector.TextSelector(
             selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
         ),
-        vol.Optional(CONF_TARGET_DEVICE_NAME, default=""): str,
     }
 )
 
